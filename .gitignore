@@ -1,0 +1,32 @@
+# База данных и временные файлы
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Бекапы БД
+data/backups/
+*.bak
+*.backup
+
+# Файлы окружения
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+archives
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
