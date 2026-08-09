@@ -1,5 +1,6 @@
 import logging
 import json
+import os
 from datetime import datetime, date, timedelta
 
 import aiosqlite
@@ -22,6 +23,13 @@ class Database:
         self.db_path = db_path or config.DB_PATH
 
     async def connect(self):
+        # На сервере папка под БД (например data/) обычно в .gitignore и не
+        # приходит вместе с кодом — создаём её сами, если её ещё нет, иначе
+        # aiosqlite падает с "unable to open database file".
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
         self.conn = await aiosqlite.connect(self.db_path)
         await self.conn.execute("PRAGMA foreign_keys = ON;")
         await self.init_tables()
@@ -1095,13 +1103,12 @@ class Database:
             logger.exception("Error counting interaction log")
             return 0
 
-    async def export_interactions_csv(self, out_path: str) -> int:
+    async def export_interactions_rows(self) -> list[tuple]:
         """
-        Выгружает весь накопленный лог взаимодействий в CSV-файл по указанному
-        пути. Возвращает количество выгруженных строк.
+        Возвращает все строки interaction_log как есть (без записи на диск —
+        этим занимается вызывающий код, который тоже отвечает за шифрование
+        перед сохранением, см. handlers/interaction_logger.py).
         """
-        import csv
-
         try:
             cursor = await self.conn.execute(
                 """
@@ -1111,25 +1118,10 @@ class Database:
                 ORDER BY created_at ASC
                 """
             )
-            rows = await cursor.fetchall()
+            return await cursor.fetchall()
         except Exception:
             logger.exception("Error reading interaction log for export")
-            return 0
-
-        header = [
-            "log_id", "user_id", "full_name", "username",
-            "interaction_type", "section", "details", "created_at",
-        ]
-        try:
-            with open(out_path, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow(header)
-                writer.writerows(rows)
-        except Exception:
-            logger.exception("Error writing interaction log CSV to %s", out_path)
-            return 0
-
-        return len(rows)
+            return []
 
     async def clear_interaction_log(self, before: str | None = None) -> int:
         """Удаляет записи из interaction_log (по умолчанию — все). Возвращает

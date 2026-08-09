@@ -18,25 +18,27 @@ REFERENCE_LINKS = {
     "studio": {
         "name": "Студия",
         "posts": [
-            {"title": "Studio", "url": "https://t.me/your_channel/1"},
+            {"title": "Студийный портрет", "url": "https://t.me/your_channel/1"},
+            {"title": "Студийный фэшн", "url": "https://t.me/your_channel/2"},
         ],
     },
     "street": {
         "name": "Улица",
         "posts": [
-            {"title": "Street-фото", "url": "https://t.me/your_channel/3"},
+            {"title": "Уличная свадьба", "url": "https://t.me/your_channel/3"},
+            {"title": "Уличный портрет", "url": "https://t.me/your_channel/4"},
         ],
     },
     "pets": {
         "name": "Питомцы",
         "posts": [
-            {"title": "Фото с хвостиками", "url": "https://t.me/your_channel/5"},
+            {"title": "Фотосессия с питомцем", "url": "https://t.me/your_channel/5"},
         ],
     },
     "celebration": {
         "name": "Торжества",
         "posts": [
-            {"title": "Торжества", "url": "https://t.me/your_channel/6"},
+            {"title": "Свадебная фотосессия", "url": "https://t.me/your_channel/6"},
         ],
     },
 }
