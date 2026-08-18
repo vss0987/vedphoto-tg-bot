@@ -7,9 +7,13 @@
 календаря, отправка контакта и т.д.), включая те места, где отдельный вызов
 логирования легко забыть добавить.
 
-Хранение — обычная таблица SQLite (interaction_log в database.py), это и есть
-"best practice" формат: нормализованные строки, которые тривиально выгружаются
-в CSV (см. export_interactions_csv) и не требуют парсинга при архивации.
+Шифрование — в два слоя, оба публичным ключом (crypto_utils.py), сервер не
+может расшифровать ни один из них:
+  1. Каждая строка шифруется СРАЗУ при записи (см. database.py:
+     log_interaction) — таблица в БД не хранит имена/детали открытым
+     текстом вообще ни секунды, даже до еженедельной архивации.
+  2. Весь CSV дополнительно шифруется целиком при архивации (ниже) — как
+     было раньше, для единообразия с остальными архивами.
 
 Раз в неделю (по умолчанию — каждый понедельник в 00:00) фоновая задача
 (см. weekly_archive_task в main.py) выгружает всё накопленное в CSV-файл,
@@ -194,8 +198,7 @@ async def archive_interaction_log(bot: Bot | None = None) -> tuple[int, str] | N
         return None
 
     header = [
-        "log_id", "user_id", "full_name", "username",
-        "interaction_type", "section", "details", "created_at",
+        "log_id", "user_id", "interaction_type", "encrypted_payload", "created_at",
     ]
     buffer = io.StringIO()
     writer = csv.writer(buffer)

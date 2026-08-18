@@ -6,6 +6,7 @@ from datetime import datetime, date, timedelta
 import aiosqlite
 
 import config
+from crypto_utils import encrypt_field, decrypt_field_safe, encrypt_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +260,17 @@ class Database:
         if "booking_time" not in order_columns:
             await self.conn.execute("ALTER TABLE orders ADD COLUMN booking_time TEXT")
 
+        cursor = await self.conn.execute("PRAGMA table_info(interaction_log)")
+        interaction_log_columns = {row[1] for row in await cursor.fetchall()}
+
+        if "encrypted_payload" not in interaction_log_columns:
+            # full_name/username/section/details теперь пишутся сюда одним
+            # зашифрованным блоком (см. log_interaction) вместо отдельных
+            # текстовых колонок — старые колонки остаются в схеме ради
+            # совместимости со строками, записанными до этой миграции
+            # (см. export_interactions_rows), но больше не заполняются.
+            await self.conn.execute("ALTER TABLE interaction_log ADD COLUMN encrypted_payload TEXT")
+
         # --- Индекс для уникальных слотов ---
         await self.conn.execute("""
                                 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_slot
@@ -276,9 +288,9 @@ class Database:
     def _row_to_user(row):
         return {
             "user_id": row[0],
-            "full_name": row[1],
-            "username": row[2],
-            "phone": row[3],
+            "full_name": decrypt_field_safe(row[1]),
+            "username": decrypt_field_safe(row[2]),
+            "phone": decrypt_field_safe(row[3]),
             "registered_at": row[4],
             "is_blocked": bool(row[5]),
             "last_interaction": row[6],
@@ -290,10 +302,10 @@ class Database:
         return {
             "order_id": row[0],
             "user_id": row[1],
-            "full_name": row[2],
+            "full_name": decrypt_field_safe(row[2]),
             "photosession_type": row[3],
             "status": row[4],
-            "notes": row[5],
+            "notes": decrypt_field_safe(row[5]),
             "booking_date": row[6],
             "booking_time": row[7],
             "created_at": row[8],
@@ -305,8 +317,8 @@ class Database:
         """Как _row_to_order, но с добавленными username/phone из таблицы users
         (когда строка получена через LEFT JOIN users)."""
         order = Database._row_to_order(row[:10])
-        order["username"] = row[10] if len(row) > 10 else None
-        order["phone"] = row[11] if len(row) > 11 else None
+        order["username"] = decrypt_field_safe(row[10]) if len(row) > 10 else None
+        order["phone"] = decrypt_field_safe(row[11]) if len(row) > 11 else None
         return order
 
     # --- Методы для users ---
@@ -320,6 +332,9 @@ class Database:
     ) -> bool:
         """Добавляет или обновляет пользователя."""
         full_name = f"{first_name or ''} {last_name or ''}".strip()
+        enc_full_name = encrypt_field(full_name) if full_name else None
+        enc_username = encrypt_field(username)
+        enc_phone = encrypt_field(phone)
         try:
             await self.conn.execute(
                 """
@@ -331,7 +346,8 @@ class Database:
                     phone = COALESCE (?, phone),
                     last_interaction = CURRENT_TIMESTAMP
                 """,
-                (user_id, full_name, username, phone, full_name, username, phone),
+                (user_id, enc_full_name, enc_username, enc_phone,
+                 enc_full_name, enc_username, enc_phone),
             )
             await self.conn.commit()
             return True
@@ -355,7 +371,7 @@ class Database:
         try:
             await self.conn.execute(
                 "UPDATE users SET phone = ?, last_interaction = CURRENT_TIMESTAMP WHERE user_id = ?",
-                (phone, user_id),
+                (encrypt_field(phone), user_id),
             )
             await self.conn.commit()
             return True
@@ -377,13 +393,18 @@ class Database:
             return False
 
     async def add_interaction(self, user_id: int, action: str) -> bool:
-        """Добавляет запись в историю взаимодействий."""
+        """Добавляет запись в историю взаимодействий (зашифрованно — сюда
+        попадают и телефон, и фрагменты вопросов, см. места вызова)."""
         try:
-            user = await self.get_user(user_id)
-            if not user:
+            user_row = await self.conn.execute(
+                "SELECT interaction_history FROM users WHERE user_id = ?", (user_id,)
+            )
+            row = await user_row.fetchone()
+            if not row:
                 return False
 
-            history = json.loads(user["interaction_history"] or "[]")
+            raw_history = decrypt_field_safe(row[0]) or "[]"
+            history = json.loads(raw_history)
             history.append({
                 "timestamp": datetime.now().isoformat(),
                 "action": action,
@@ -400,7 +421,7 @@ class Database:
                     last_interaction    = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 """,
-                (json.dumps(history, ensure_ascii=False), user_id),
+                (encrypt_field(json.dumps(history, ensure_ascii=False)), user_id),
             )
             await self.conn.commit()
             return True
@@ -411,10 +432,14 @@ class Database:
     async def get_interaction_history(self, user_id: int, limit: int = 10) -> list:
         """Возвращает последние N записей истории."""
         try:
-            user = await self.get_user(user_id)
-            if not user:
+            cursor = await self.conn.execute(
+                "SELECT interaction_history FROM users WHERE user_id = ?", (user_id,)
+            )
+            row = await cursor.fetchone()
+            if not row:
                 return []
-            history = json.loads(user["interaction_history"] or "[]")
+            raw_history = decrypt_field_safe(row[0]) or "[]"
+            history = json.loads(raw_history)
             return history[-limit:] if history else []
         except Exception:
             logger.exception("Error getting history for user %s", user_id)
@@ -431,7 +456,8 @@ class Database:
     ) -> dict | None:
         """Атомарное создание брони с проверкой уникальности слота."""
         try:
-            # Получаем пользователя для full_name
+            # Получаем пользователя для full_name (уже расшифрованное значение —
+            # get_user идёт через _row_to_user, который сам расшифровывает)
             user = await self.get_user(user_id)
             full_name = user["full_name"] if user else ""
 
@@ -441,7 +467,8 @@ class Database:
                                     booking_date, booking_time, status, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
                 """,
-                (user_id, full_name, photosession_type, notes, booking_date, booking_time),
+                (user_id, encrypt_field(full_name), photosession_type, encrypt_field(notes),
+                 booking_date, booking_time),
             )
             await self.conn.commit()
             order_id = cursor.lastrowid
@@ -845,7 +872,7 @@ class Database:
                 INSERT INTO questions (user_id, username, text)
                 VALUES (?, ?, ?)
                 """,
-                (user_id, username, text),
+                (user_id, encrypt_field(username), encrypt_field(text)),
             )
             await self.conn.commit()
 
@@ -866,10 +893,26 @@ class Database:
                 "SELECT phone FROM users WHERE user_id = ?", (user_id,)
             )
             row = await cursor.fetchone()
-            return row[0] if row else None
+            return decrypt_field_safe(row[0]) if row else None
         except Exception:
             logger.exception("Error getting phone for user %s", user_id)
             return None
+
+    async def delete_user_phone(self, user_id: int) -> bool:
+        """Удаляет сохранённый номер телефона пользователя (по его запросу
+        на удаление персональных данных — см. дисклеймер в
+        phone_required.py). Сами записи/брони не трогает, только номер."""
+        try:
+            await self.conn.execute(
+                "UPDATE users SET phone = NULL, last_interaction = CURRENT_TIMESTAMP "
+                "WHERE user_id = ?",
+                (user_id,),
+            )
+            await self.conn.commit()
+            return True
+        except Exception:
+            logger.exception("Error deleting phone for user %s", user_id)
+            return False
 
     # ============ АДМИН-МЕТОДЫ ============
 
@@ -977,14 +1020,14 @@ class Database:
                     "user_id": r[1],
                     # username, сохранённый в момент вопроса (для старых записей
                     # это могло быть "@Имя"-заглушка, если у юзера не было username)
-                    "username": r[2],
-                    "text": r[3],
+                    "username": decrypt_field_safe(r[2]),
+                    "text": decrypt_field_safe(r[3]),
                     "created_at": r[4],
-                    "full_name": r[5],
+                    "full_name": decrypt_field_safe(r[5]),
                     # актуальный telegram-username из таблицы users (может отличаться
                     # от того, что был сохранён в questions.username на момент вопроса)
-                    "telegram_username": r[6],
-                    "phone": r[7],
+                    "telegram_username": decrypt_field_safe(r[6]),
+                    "phone": decrypt_field_safe(r[7]),
                 }
                 for r in rows
             ]
@@ -1004,9 +1047,9 @@ class Database:
             return [
                 {
                     "user_id": r[0],
-                    "full_name": r[1],
-                    "username": r[2],
-                    "phone": r[3],
+                    "full_name": decrypt_field_safe(r[1]),
+                    "username": decrypt_field_safe(r[2]),
+                    "phone": decrypt_field_safe(r[3]),
                     "registered_at": r[4],
                     "is_blocked": bool(r[5]) if r[5] is not None else False,
                     "last_interaction": r[6]
@@ -1079,14 +1122,38 @@ class Database:
         section: str | None,
         details: str | None = None,
     ) -> bool:
+        """
+        Записывает взаимодействие. Чувствительная часть (имя, username,
+        раздел, детали) шифруется публичным ключом ПРЯМО ЗДЕСЬ, в момент
+        записи — сервер после этого прочитать её уже не может (нет
+        приватного ключа), только структурные поля (кто/когда/какой тип)
+        остаются в открытом виде для базовых операций (счёт, еженедельная
+        очистка). См. crypto_utils.py.
+        """
+        payload = json.dumps({
+            "full_name": full_name,
+            "username": username,
+            "section": section,
+            "details": details,
+        }, ensure_ascii=False)
+
+        encrypted_payload = None
+        try:
+            encrypted_payload = encrypt_bytes(payload.encode()).decode()
+        except Exception:
+            logger.exception(
+                "Failed to encrypt interaction payload for user %s — payload not "
+                "stored for this row (public_key.pem missing/misconfigured?)",
+                user_id,
+            )
+
         try:
             await self.conn.execute(
                 """
-                INSERT INTO interaction_log
-                    (user_id, full_name, username, interaction_type, section, details)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO interaction_log (user_id, interaction_type, encrypted_payload)
+                VALUES (?, ?, ?)
                 """,
-                (user_id, full_name, username, interaction_type, section, details),
+                (user_id, interaction_type, encrypted_payload),
             )
             await self.conn.commit()
             return True
@@ -1105,23 +1172,52 @@ class Database:
 
     async def export_interactions_rows(self) -> list[tuple]:
         """
-        Возвращает все строки interaction_log как есть (без записи на диск —
-        этим занимается вызывающий код, который тоже отвечает за шифрование
-        перед сохранением, см. handlers/interaction_logger.py).
+        Возвращает строки interaction_log: (log_id, user_id, interaction_type,
+        encrypted_payload, created_at). encrypted_payload уже зашифрован
+        публичным ключом (см. log_interaction) — экспорт ничего не
+        расшифровывает и не может.
+
+        Легаси-строки, записанные ДО перехода на encrypted_payload (в
+        старых текстовых колонках full_name/username/section/details),
+        шифруются прямо здесь, на лету, перед экспортом — чтобы в
+        итоговом файле не осталось вообще ни одной читаемой строки,
+        независимо от того, когда она была записана.
         """
         try:
             cursor = await self.conn.execute(
                 """
-                SELECT log_id, user_id, full_name, username, interaction_type,
-                       section, details, created_at
+                SELECT log_id, user_id, interaction_type, encrypted_payload,
+                       full_name, username, section, details, created_at
                 FROM interaction_log
                 ORDER BY created_at ASC
                 """
             )
-            return await cursor.fetchall()
+            rows = await cursor.fetchall()
         except Exception:
             logger.exception("Error reading interaction log for export")
             return []
+
+        result = []
+        for (log_id, user_id, interaction_type, encrypted_payload,
+             full_name, username, section, details, created_at) in rows:
+            if not encrypted_payload:
+                legacy_payload = json.dumps({
+                    "full_name": full_name,
+                    "username": username,
+                    "section": section,
+                    "details": details,
+                }, ensure_ascii=False)
+                try:
+                    encrypted_payload = encrypt_bytes(legacy_payload.encode()).decode()
+                except Exception:
+                    logger.exception(
+                        "Failed to encrypt legacy interaction_log row %s at export time", log_id
+                    )
+                    encrypted_payload = ""
+
+            result.append((log_id, user_id, interaction_type, encrypted_payload, created_at))
+
+        return result
 
     async def clear_interaction_log(self, before: str | None = None) -> int:
         """Удаляет записи из interaction_log (по умолчанию — все). Возвращает

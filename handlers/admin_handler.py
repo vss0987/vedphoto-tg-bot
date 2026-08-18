@@ -135,6 +135,42 @@ async def admin_panel(message: Message):
     await show_admin_menu(message)
 
 
+@admin_router.message(Command("delete_phone"))
+async def admin_delete_phone(message: Message):
+    """Удаляет номер телефона пользователя по его запросу на удаление
+    персональных данных (см. дисклеймер при запросе номера в
+    phone_required.py). Использование: /delete_phone <user_id>."""
+    if not is_admin(message.from_user.id):
+        await message.answer("⛔ У вас нет доступа к этой команде.")
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) != 2 or not parts[1].strip().lstrip("-").isdigit():
+        await message.answer(
+            "Использование: <code>/delete_phone user_id</code>\n\n"
+            "user_id можно взять из карточки заказа/пользователя в админ-панели "
+            "(поле 🆔), либо из ссылки на профиль в уведомлениях.",
+            parse_mode="HTML",
+        )
+        return
+
+    target_user_id = int(parts[1].strip())
+    user = await db.get_user(target_user_id)
+    if not user:
+        await message.answer(f"Пользователь с id {target_user_id} не найден.")
+        return
+
+    success = await db.delete_user_phone(target_user_id)
+    if success:
+        link = user_link(target_user_id, user.get("username"), user.get("full_name"))
+        await message.answer(
+            f"✅ Номер телефона пользователя {link} удалён из базы.",
+            parse_mode="HTML",
+        )
+    else:
+        await message.answer("⚠️ Не удалось удалить номер. Подробности в логах.")
+
+
 @admin_router.callback_query(F.data == "admin_back")
 async def admin_back(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
