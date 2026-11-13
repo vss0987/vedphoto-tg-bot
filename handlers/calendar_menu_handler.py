@@ -1,6 +1,7 @@
 import logging
 
 from aiogram import Router, F, Bot
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
@@ -573,7 +574,10 @@ async def back_to_calendar(callback: CallbackQuery):
 async def back_to_menu(callback: CallbackQuery):
     user_id = callback.from_user.id
     await db.clear_user_state(user_id)
-    await callback.message.delete()
+    try:
+       await callback.message.delete()
+    except TelegramBadRequest as e:
+        pass
     await callback.message.answer("Главное меню:", reply_markup=get_menu_keyboard())
     await callback.answer()
 

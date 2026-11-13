@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     raise RuntimeError(
         "BOT_TOKEN не найден. Создайте файл .env (см. .env.example) "

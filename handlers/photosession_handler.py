@@ -1,6 +1,7 @@
 import logging
 
 from aiogram import Router, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, CallbackQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -118,13 +119,19 @@ async def order_photosession(callback: CallbackQuery):
         reply_markup=get_main_calendar_keyboard(year, month, booking_days),
         parse_mode="HTML",
     )
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except TelegramBadRequest as e:
+        pass
     await callback.answer()
 
 
 @photosession_router.callback_query(F.data == "back_to_photosession_menu")
 async def back_to_photosession_menu(callback: CallbackQuery):
-    await callback.message.delete()
+    try:
+        await callback.message.delete()
+    except TelegramBadRequest as e:
+        pass
     await callback.message.answer(
         "Выберите тип фотосессии:",
         reply_markup=get_photosession_keyboard(),
