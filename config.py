@@ -17,7 +17,7 @@ try:
 except ValueError:
     ADMIN_CHAT_ID = None
 
-DB_PATH = os.getenv("DB_PATH", "bot_database.db")
+DB_PATH = os.getenv("DB_PATH", "/data/bot_database.db")
 
 # Примечание: ключ шифрования архивов (BACKUP_ENCRYPTION_KEY) читается
 # отдельно в crypto_utils.py, а не отсюда — намеренно, чтобы скрипты

@@ -820,6 +820,10 @@ class Database:
     # --- Методы для user_states (оставляем без изменений) ---
     async def save_user_state(self, user_id: int, menu: str, type: str = "", index: int = 0):
         try:
+            # Сначала убедимся, что пользователь существует, иначе внешний ключ user_states завершится ошибкой
+            await self.conn.execute(
+                "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
+            )
             await self.conn.execute(
                 """
                 INSERT OR REPLACE INTO user_states
