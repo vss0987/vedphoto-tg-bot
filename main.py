@@ -30,6 +30,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import os, hashlib
+
+key = os.environ.get("DB_FIELD_ENCRYPTION_KEY")
+if key is None:
+    print("DB_FIELD_ENCRYPTION_KEY: NOT SET", flush=True)
+else:
+    print(f"DB_FIELD_ENCRYPTION_KEY len={len(key)} sha256={hashlib.sha256(key.encode()).hexdigest()}", flush=True)
+
 
 async def cmd_cancel(message: Message, state: FSMContext):
     current = await state.get_state()
