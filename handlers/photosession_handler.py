@@ -19,21 +19,19 @@ REFERENCE_LINKS = {
     "studio": {
         "name": "Студия",
         "posts": [
-            {"title": "Студийный портрет", "url": "https://t.me/your_channel/1"},
-            {"title": "Студийный фэшн", "url": "https://t.me/your_channel/2"},
+            {"title": "Посмотреть работы", "url": "https://t.me/+dAeSBXLTrJZhMmEy"},
         ],
     },
     "street": {
         "name": "Улица",
         "posts": [
-            {"title": "Уличная свадьба", "url": "https://t.me/your_channel/3"},
-            {"title": "Уличный портрет", "url": "https://t.me/your_channel/4"},
+            {"title": "Посмотреть работы", "url": "https://t.me/+dAeSBXLTrJZhMmEy"},
         ],
     },
-    "pets": {
-        "name": "Питомцы",
+    "interior": {
+        "name": "Интерьер",
         "posts": [
-            {"title": "Фотосессия с питомцем", "url": "https://t.me/your_channel/5"},
+            {"title": "Посмотреть работы", "url": "https://t.me/+dAeSBXLTrJZhMmEy"},
         ],
     },
     "celebration": {
@@ -63,9 +61,9 @@ async def show_street_references(message: Message):
     await show_references(message, "street")
 
 
-@photosession_router.message(F.text == "Питомцы")
+@photosession_router.message(F.text == "Интерьер")
 async def show_pets_references(message: Message):
-    await show_references(message, "pets")
+    await show_references(message, "interior")
 
 
 @photosession_router.message(F.text == "Торжества")
@@ -92,7 +90,7 @@ async def show_references(message: Message, photosession_type: str):
 
     await message.answer(
         f"📸 <b>{ref_data['name']}</b>\n\n"
-        f"Нажми на понравившийся референс, чтобы посмотреть фото в канале\n"
+        # f"Нажми на на ссылку, чтобы посмотреть фото в канале\n"
         f"<i>В канале включена защита от скриншотов 🔒</i>",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",

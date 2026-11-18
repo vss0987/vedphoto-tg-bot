@@ -97,15 +97,15 @@ async def show_prices(message: Message, state: FSMContext):
     labels = {
         "studio": "🌟 <b>Студийная</b>",
         "street": "🌳 <b>Уличная</b>",
-        "pets": "🐕 <b>С питомцами</b>",
-        "celebration": "🎉 <b>Торжества</b>",
+        "interior": "🛋️ <b>Съемка интерьера</b>",
+        # "celebration": "🎉 <b>Торжества</b>",
     }
 
     prices_text = "📸 <b>Стоимость фотосессий</b>\n\n"
     for key, label in labels.items():
         prefix = "от " if key in PRICE_FROM else ""
         price = f"{PRICES[key]:,}".replace(",", " ")
-        prices_text += f"{label} — {prefix}{price} ₽\n"
+        prices_text += f"{label} - {prefix}{price} ₽\n"
     prices_text += "\n💳 Оплата на месте или по безналичному расчёту."
 
     await message.answer(
