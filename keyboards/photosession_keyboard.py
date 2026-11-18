@@ -13,8 +13,8 @@ def get_photosession_keyboard() -> ReplyKeyboardMarkup:
     )
 
     builder.row(
-        KeyboardButton(text="Питомцы"),
-        KeyboardButton(text="Торжества")
+        KeyboardButton(text="Интерьер"),
+        # KeyboardButton(text="Торжества")
     )
 
     builder.row(
