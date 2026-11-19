@@ -69,6 +69,9 @@ async def show_admin_menu(message: Message):
         InlineKeyboardButton(text="🚫 Закрытые даты", callback_data="admin_blocked_dates"),
         InlineKeyboardButton(text="📦 Архив взаимодействий", callback_data="admin_archive_now"),
     )
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Выход", callback_data="back_to_menu")
+    )
     builder.adjust(2)
 
     await message.answer(

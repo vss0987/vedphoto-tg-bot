@@ -30,7 +30,7 @@ REFERENCE_LINKS = {
     "interior": {
         "name": "Интерьер",
         "posts": [
-            {"title": "Посмотреть работы", "url": "https://t.me/+dAeSBXLTrJZhMmEy"},
+            {"title": "Посмотреть работы", "url": "https://t.me/c/3133436605/43"},
         ],
     },
     "celebration": {
