@@ -59,9 +59,9 @@ async def show_pets_references(message: Message):
     await show_references(message, "interior")
 
 
-@photosession_router.message(F.text == "Торжества")
-async def show_celebration_references(message: Message):
-    await show_references(message, "celebration")
+# @photosession_router.message(F.text == "Торжества")
+# async def show_celebration_references(message: Message):
+#     await show_references(message, "celebration")
 
 
 async def show_references(message: Message, photosession_type: str):
