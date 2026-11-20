@@ -492,6 +492,9 @@ class Database:
                 "updated_at": datetime.now().isoformat(),
             }
         except aiosqlite.IntegrityError as exc:
+            if "FOREIGN KEY" in str(exc):
+                logger.error("create_booking: user %s is not registered", user_id)
+                return None
             logger.warning("Slot taken: %s %s — %s", booking_date, booking_time, exc)
             raise SlotTakenError from exc
         except Exception:

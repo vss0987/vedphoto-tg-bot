@@ -11,6 +11,8 @@ from services.booking_service import BookingService
 async def service(tmp_path):
     database = Database(db_path=str(tmp_path / "test.db"))
     await database.connect()
+    await database.add_user(1, username="user1", first_name="Ivan")
+    await database.add_user(2, username="user2", first_name="Petr")
     svc = BookingService(database)
     yield svc, database
     await database.close()
@@ -21,7 +23,7 @@ async def test_available_slots_excludes_taken(service):
     svc, db = service
     target = date(2026, 9, 1)
 
-    await db.create_booking(1, "studio", "2026-09-01", "10:00")
+    await db.create_booking(1, "interior", "2026-09-01", "10:00")
     await db.create_booking(2, "street", "2026-09-01", "14:00")
 
     slots = await svc.get_available_slots(target)
@@ -47,8 +49,8 @@ async def test_create_booking_via_service(service):
 @pytest.mark.asyncio
 async def test_format_booking_text(service):
     svc, db = service
-    order = await db.create_booking(1, "celebration", "2026-09-20", "18:00", notes="Свадьба")
+    order = await db.create_booking(1, "interior", "2026-09-20", "18:00")
     booking = svc.order_to_booking(order)
     text = svc.format_booking_text(booking)
-    assert "Торжества" in text
+    assert "Интерьер" in text
     assert "18:00" in text
