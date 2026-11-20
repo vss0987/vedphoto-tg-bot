@@ -33,12 +33,6 @@ REFERENCE_LINKS = {
             {"title": "Посмотреть работы", "url": "https://t.me/c/3133436605/43"},
         ],
     },
-    "celebration": {
-        "name": "Торжества",
-        "posts": [
-            {"title": "Свадебная фотосессия", "url": "https://t.me/your_channel/6"},
-        ],
-    },
 }
 
 

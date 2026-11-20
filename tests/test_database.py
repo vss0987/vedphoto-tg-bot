@@ -8,6 +8,10 @@ from database import Database, SlotTakenError, OrderNotFoundError
 async def db(tmp_path):
     database = Database(db_path=str(tmp_path / "test.db"))
     await database.connect()
+    # Пользователи, от имени которых тесты создают брони
+    await database.add_user(1, username="user1", first_name="Ivan")
+    await database.add_user(2, username="user2", first_name="Petr")
+    await database.add_user(5, username="quser", first_name="Q")
     yield database
     await database.close()
 
