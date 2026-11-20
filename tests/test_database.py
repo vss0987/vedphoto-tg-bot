@@ -86,3 +86,4 @@ async def test_get_user_booking_dates_in_month(db):
 
     days = await db.get_user_booking_dates_in_month(1, 2026, 8)
     assert days == {7, 15}
+
